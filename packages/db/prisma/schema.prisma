@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  marketer
+  client
+}
+
+enum DeviceType {
+  mobile
+  desktop
+  tablet
+}
+
+enum ReportStatus {
+  pending
+  processing
+  done
+  failed
+}
+
+enum ReportKind {
+  manual
+  weekly
+}
+
+enum NotificationType {
+  report_ready
+  alert_no_clicks
+  weekly_report
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole
+  clientId     String?  @map("client_id") @db.Uuid
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  client  Client?  @relation(fields: [clientId], references: [id])
+  links   Link[]   @relation("CreatedLinks")
+  reports Report[]
+
+  @@map("users")
+}
+
+model Client {
+  id           String   @id @default(uuid()) @db.Uuid
+  name         String
+  contactEmail String   @map("contact_email")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  users   User[]
+  links   Link[]
+  reports Report[]
+
+  @@index([name])
+  @@map("clients")
+}
+
+model Link {
+  id           String    @id @default(uuid()) @db.Uuid
+  shortCode    String    @unique @map("short_code")
+  originalUrl  String    @map("original_url")
+  campaignName String?   @map("campaign_name")
+  clientId     String    @map("client_id") @db.Uuid
+  createdBy    String    @map("created_by") @db.Uuid
+  active       Boolean   @default(true)
+  expiresAt    DateTime? @map("expires_at") @db.Timestamptz
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt    DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+  deletedAt    DateTime? @map("deleted_at") @db.Timestamptz
+
+  client  Client            @relation(fields: [clientId], references: [id])
+  creator User              @relation("CreatedLinks", fields: [createdBy], references: [id])
+  clicks  Click[]
+  logs    NotificationLog[]
+
+  @@index([createdBy])
+  @@index([clientId])
+  @@index([active, expiresAt])
+  @@map("links")
+}
+
+model Click {
+  id         String      @id @default(uuid()) @db.Uuid
+  linkId     String      @map("link_id") @db.Uuid
+  eventId    String      @unique @map("event_id") @db.Uuid
+  clickedAt  DateTime    @map("clicked_at") @db.Timestamptz
+  country    String?
+  city       String?
+  deviceType DeviceType? @map("device_type")
+  browser    String?
+  os         String?
+  referrer   String?
+  ipHash     String?     @map("ip_hash")
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz
+
+  link Link @relation(fields: [linkId], references: [id])
+
+  @@index([linkId, clickedAt])
+  @@index([clickedAt])
+  @@map("clicks")
+}
+
+model Report {
+  id           String       @id @default(uuid()) @db.Uuid
+  status       ReportStatus
+  requestedBy  String       @map("requested_by") @db.Uuid
+  clientId     String?      @map("client_id") @db.Uuid
+  dateFrom     DateTime     @map("date_from") @db.Timestamptz
+  dateTo       DateTime     @map("date_to") @db.Timestamptz
+  linkIds      String[]     @map("link_ids") @db.Uuid
+  kind         ReportKind
+  filePath     String?      @map("file_path")
+  errorMessage String?      @map("error_message")
+  createdAt    DateTime     @default(now()) @map("created_at") @db.Timestamptz
+  completedAt  DateTime?    @map("completed_at") @db.Timestamptz
+
+  requester User              @relation(fields: [requestedBy], references: [id])
+  client    Client?           @relation(fields: [clientId], references: [id])
+  logs      NotificationLog[]
+
+  @@index([requestedBy, createdAt])
+  @@index([status])
+  @@map("reports")
+}
+
+model NotificationLog {
+  id             String            @id @default(uuid()) @db.Uuid
+  type           NotificationType
+  recipientEmail String            @map("recipient_email")
+  linkId         String?           @map("link_id") @db.Uuid
+  reportId       String?           @map("report_id") @db.Uuid
+  periodKey      String            @map("period_key")
+  dedupeKey      String            @unique @map("dedupe_key")
+  sentAt         DateTime?         @map("sent_at") @db.Timestamptz
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz
+
+  link   Link?   @relation(fields: [linkId], references: [id])
+  report Report? @relation(fields: [reportId], references: [id])
+
+  @@index([type, linkId, periodKey])
+  @@map("notification_logs")
+}

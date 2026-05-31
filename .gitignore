@@ -1,0 +1,11 @@
+node_modules/
+dist/
+dist-ts/
+.env
+.env.local
+storage/
+coverage/
+.vite/
+*.log
+__MACOSX/
+.DS_Store

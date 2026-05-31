@@ -1,0 +1,121 @@
+name: trackflow
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: trackflow
+      POSTGRES_USER: trackflow
+      POSTGRES_PASSWORD: trackflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trackflow -d trackflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: trackflow
+      RABBITMQ_DEFAULT_PASS: trackflow
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://trackflow:trackflow@postgres:5432/trackflow
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://trackflow:trackflow@rabbitmq:5672
+      JWT_SECRET: dev-change-me-trackflow
+      IP_HASH_SALT: dev-change-me-ip-salt
+      APP_BASE_URL: http://localhost:3000
+      PDF_STORAGE_PATH: /app/storage/reports
+    ports:
+      - "3000:3000"
+    volumes:
+      - reports_data:/app/storage/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build:
+      context: ..
+      dockerfile: apps/worker/Dockerfile
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://trackflow:trackflow@postgres:5432/trackflow
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://trackflow:trackflow@rabbitmq:5672
+      SMTP_HOST: mailhog
+      SMTP_PORT: 1025
+      SMTP_FROM: noreply@trackflow.io
+      PDF_STORAGE_PATH: /app/storage/reports
+      IP_HASH_SALT: dev-change-me-ip-salt
+      APP_BASE_URL: http://localhost:3000
+    volumes:
+      - reports_data:/app/storage/reports
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      mailhog:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: apps/frontend/Dockerfile
+    environment:
+      VITE_API_URL: http://localhost:3000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  rabbitmq_data:
+  reports_data:
