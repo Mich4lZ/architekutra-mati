@@ -42,14 +42,14 @@ export async function handleReportRequested(prisma: PrismaClient, event: EventEn
       doc.moveDown();
       writeLine(doc, 'Date from', event.payload.date_from);
       writeLine(doc, 'Date to', event.payload.date_to);
-      writeLine(doc, 'Total clicks', stats.total);
-      writeLine(doc, 'Unique clicks', stats.unique);
-      doc.moveDown().fontSize(14).text('Top countries');
-      stats.countries.forEach((row) => writeLine(doc, row.country ?? 'unknown', row._count._all));
-      doc.moveDown().fontSize(14).text('Top devices');
-      stats.devices.forEach((row) => writeLine(doc, row.deviceType ?? 'unknown', row._count._all));
-      doc.moveDown().fontSize(14).text('Top referrers');
-      stats.referrers.forEach((row) => writeLine(doc, row.referrer ?? 'direct', row._count._all));
+       writeLine(doc, 'Total clicks', stats.total);
+       writeLine(doc, 'Unique clicks', stats.unique);
+       doc.moveDown().fontSize(14).text('Top countries');
+       stats.countries.forEach((row: any) => writeLine(doc, row.country ?? 'unknown', row._count._all));
+       doc.moveDown().fontSize(14).text('Top devices');
+       stats.devices.forEach((row: any) => writeLine(doc, row.deviceType ?? 'unknown', row._count._all));
+       doc.moveDown().fontSize(14).text('Top referrers');
+       stats.referrers.forEach((row: any) => writeLine(doc, row.referrer ?? 'direct', row._count._all));
       doc.end();
     });
 

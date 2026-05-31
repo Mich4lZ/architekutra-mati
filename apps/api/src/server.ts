@@ -12,8 +12,8 @@ import { registerAuth, requireAuth, requireMarketer } from './auth.js';
 import { env } from './env.js';
 import { closeRabbit, publishEvent } from './rabbit.js';
 
-const redis = new Redis(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
-void redis.connect().catch((error) => console.error({ error }, 'Redis connect failed'));
+const redis = new (Redis as any)(env.REDIS_URL, { lazyConnect: true, maxRetriesPerRequest: 1 });
+void redis.connect().catch((error: unknown) => console.error({ error }, 'Redis connect failed'));
 
 type RedirectCache = { link_id: string; original_url: string; expires_at: string | null };
 
@@ -57,16 +57,16 @@ export async function buildApp() {
       prisma.client.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
       prisma.client.count({ where })
     ]);
-    return {
-      data: data.map((client) => ({
-        id: client.id,
-        name: client.name,
-        contact_email: client.contactEmail,
-        created_at: client.createdAt.toISOString()
-      })),
-      total,
-      page
-    };
+     return {
+       data: data.map((client: any) => ({
+         id: client.id,
+         name: client.name,
+         contact_email: client.contactEmail,
+         created_at: client.createdAt.toISOString()
+       })),
+       total,
+       page
+     };
   });
 
   app.post('/api/clients', { preHandler: requireMarketer }, async (request, reply) => {
@@ -164,24 +164,24 @@ export async function buildApp() {
     const [total, unique, timeRows, countryRows, deviceRows, refRows] = await Promise.all([
       prisma.click.count({ where }),
       prisma.click.findMany({ where: { ...where, ipHash: { not: null } }, distinct: ['ipHash'], select: { ipHash: true } }),
-      prisma.$queryRawUnsafe<Array<{ timestamp: Date; count: bigint }>>(
-        `SELECT date_trunc('${bucket}', clicked_at) AS timestamp, count(*)::bigint AS count FROM clicks WHERE link_id = $1 AND clicked_at >= $2 AND clicked_at <= $3 GROUP BY 1 ORDER BY 1`,
-        id,
-        dateFrom,
-        dateTo
-      ),
+       (prisma.$queryRawUnsafe as any)(
+         `SELECT date_trunc('${bucket}', clicked_at) AS timestamp, count(*)::bigint AS count FROM clicks WHERE link_id = $1 AND clicked_at >= $2 AND clicked_at <= $3 GROUP BY 1 ORDER BY 1`,
+         id,
+         dateFrom,
+         dateTo
+       ),
       prisma.click.groupBy({ by: ['country'], where, _count: { _all: true }, orderBy: { _count: { country: 'desc' } }, take: 5 }),
       prisma.click.groupBy({ by: ['deviceType'], where, _count: { _all: true }, orderBy: { _count: { deviceType: 'desc' } }, take: 5 }),
       prisma.click.groupBy({ by: ['referrer'], where, _count: { _all: true }, orderBy: { _count: { referrer: 'desc' } }, take: 5 })
     ]);
-    return {
-      total_clicks: total,
-      unique_clicks: unique.length,
-      clicks_over_time: timeRows.map((row) => ({ timestamp: row.timestamp.toISOString(), count: Number(row.count) })),
-      by_country: countryRows.filter((r) => r.country).map((r) => ({ country: r.country!, count: r._count._all })),
-      by_device: deviceRows.filter((r) => r.deviceType).map((r) => ({ device_type: r.deviceType!, count: r._count._all })),
-      by_referrer: refRows.filter((r) => r.referrer).map((r) => ({ referrer: r.referrer!, count: r._count._all }))
-    };
+     return {
+       total_clicks: total,
+       unique_clicks: unique.length,
+       clicks_over_time: timeRows.map((row: any) => ({ timestamp: row.timestamp.toISOString(), count: Number(row.count) })),
+       by_country: countryRows.filter((r: any) => r.country).map((r: any) => ({ country: r.country!, count: r._count._all })),
+       by_device: deviceRows.filter((r: any) => r.deviceType).map((r: any) => ({ device_type: r.deviceType!, count: r._count._all })),
+       by_referrer: refRows.filter((r: any) => r.referrer).map((r: any) => ({ referrer: r.referrer!, count: r._count._all }))
+     };
   });
 
   app.post('/api/reports', { preHandler: requireMarketer }, async (request, reply) => {
@@ -227,21 +227,21 @@ export async function buildApp() {
       prisma.report.findMany({ where, skip, take: limit, orderBy: { createdAt: 'desc' } }),
       prisma.report.count({ where })
     ]);
-    return {
-      data: data.map((report) => ({
-        id: report.id,
-        status: report.status,
-        client_id: report.clientId,
-        date_from: report.dateFrom.toISOString(),
-        date_to: report.dateTo.toISOString(),
-        download_url: report.status === 'done' ? `/api/reports/${report.id}/download` : null,
-        error_message: report.errorMessage,
-        created_at: report.createdAt.toISOString(),
-        completed_at: report.completedAt?.toISOString() ?? null
-      })),
-      total,
-      page
-    };
+     return {
+       data: data.map((report: any) => ({
+         id: report.id,
+         status: report.status,
+         client_id: report.clientId,
+         date_from: report.dateFrom.toISOString(),
+         date_to: report.dateTo.toISOString(),
+         download_url: report.status === 'done' ? `/api/reports/${report.id}/download` : null,
+         error_message: report.errorMessage,
+         created_at: report.createdAt.toISOString(),
+         completed_at: report.completedAt?.toISOString() ?? null
+       })),
+       total,
+       page
+     };
   });
 
   app.get('/api/reports/:id', { preHandler: requireMarketer }, async (request, reply) => {
@@ -281,7 +281,7 @@ export async function buildApp() {
       const link = await prisma.link.findUnique({ where: { shortCode: short_code } });
       if (!link || !isActiveLink(link)) return reply.code(404).send(errorBody('LINK_NOT_FOUND', 'Link not found'));
       redirect = { link_id: link.id, original_url: link.originalUrl, expires_at: link.expiresAt?.toISOString() ?? null };
-      await redis.set(cacheKey, JSON.stringify(redirect), 'EX', ttlSeconds(link.expiresAt)).catch((error) => request.log.warn({ error }, 'Redis write failed'));
+      await redis.set(cacheKey, JSON.stringify(redirect), 'EX', ttlSeconds(link.expiresAt)).catch((error: unknown) => request.log.warn({ error }, 'Redis write failed'));
     } else if (redirect.expires_at && new Date(redirect.expires_at).getTime() <= Date.now()) {
       return reply.code(404).send(errorBody('LINK_NOT_FOUND', 'Link not found'));
     }

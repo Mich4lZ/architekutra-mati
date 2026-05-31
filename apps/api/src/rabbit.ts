@@ -7,8 +7,8 @@ let channel: Channel | null = null;
 
 export async function getChannel() {
   if (channel) return channel;
-  connection = await amqp.connect(env.RABBITMQ_URL);
-  channel = await connection.createChannel();
+  connection = (await amqp.connect(env.RABBITMQ_URL)) as any;
+  channel = (await (connection as any).createChannel()) as Channel;
   await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
   await channel.assertQueue(DEAD_QUEUE, { durable: true });
   for (const [queue, routingKey] of [
@@ -30,12 +30,12 @@ export function publishEvent<T>(routingKey: string, event: EventEnvelope<T>) {
         deliveryMode: 2
       });
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       console.error({ error, routingKey }, 'RabbitMQ publish failed');
     });
 }
 
 export async function closeRabbit() {
-  await channel?.close();
-  await connection?.close();
+  if (channel) await channel.close();
+  if (connection) await (connection as any).close();
 }
